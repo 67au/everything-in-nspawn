@@ -2,7 +2,7 @@
 
 ## 主要用途
 
-运行 openwrt 来透明代理本机，同时也可以单独为其他容器代理，且不限于 docker / podman / nspawn 。此外，也可以作为旁路网关来使用。
+运行 openwrt 来透明代理本机。此外，也可以作为旁路网关来使用。
 
 ## 环境示例
 
@@ -26,24 +26,19 @@
   ```bash
   mkdir openwrt
   bsdtar -xvzf openwrt-23.05.2-armsr-armv8-rootfs.tar.gz -C openwrt
+  echo 'console::askfirst:/usr/libexec/login.sh' | tee -a openwrt/etc/inittab
   ```
   - 导入
   ```bash
   sudo machinectl import-fs openwrt openwrt
   ```
   > import 之后，容器会储存在 `/var/lib/machines/openwrt` 。
-  > 而如果使用 btrfs ,容器会以 btrfs 子卷形式储存。
-3. 初次启动 openwrt 使其初始化生成文件
+  > 而如果使用 btrfs ，容器会以 btrfs 子卷形式储存。
+3. 启动 openwrt
   ```bash
   sudo systemd-nspawn -D /var/lib/machines/openwrt -b
   ```
-  > 使用参数 `-b` 会启动 init ，然后一两分钟后即可连续按三次 `^]` （即 `Ctrl+]` ）杀死容器。
-4. 使用 systemd-nspawn 来 chroot openwrt 并删除 `procd-ujail` ， `procd-ujail` 在容器当中无法正常运作
-  - 启动
-  ```
-  sudo systemd-nspawn -D /var/lib/machines/openwrt
-  ```
-  - 进入到 openwrt 中删除 `procd-ujail`
+  - 按 Enter 进入终端
   ```
 BusyBox v1.36.1 (2023-11-14 13:38:11 UTC) built-in shell (ash)
 
@@ -57,11 +52,12 @@ BusyBox v1.36.1 (2023-11-14 13:38:11 UTC) built-in shell (ash)
  -----------------------------------------------------
 root@openwrt:~# 
   ```
+4. 删除 `procd-ujail` ， `procd-ujail` 在容器当中无法正常运作
+
   ```
-  mkdir /var/lock # 可能需要这一步
   opkg remove procd-ujail
   ```
-5. 基本准备工作已经完成了
+5. 基本准备工作已经完成了，连续按三次 `^]` （即 `Ctrl+]` ）杀死容器。
 
 ## 容器配置及网络配置
 
@@ -83,7 +79,7 @@ cat /etc/systemd/network/br-openwrt.network
 Name=br-openwrt
 
 [Network]
-Address=10.10.0.2/24  # 配置网桥想要使用的网段，宿主使用静态地址，并将 10.10.0.1 留给 openwrt 容器
+DHCP=yes  # 配置网桥想要使用的网段，宿主使用静态地址，并将 10.10.0.1 留给 openwrt 容器
 ```
 配置完后，重启 `systemd-networkd`
 ```
@@ -114,11 +110,12 @@ Bridge=br-openwrt  # 与宿主连接的网桥
 
 ### 配置容器内部网络
 
-1. 先不要直接启动容器，通过 systemd-nspawn 来再次 chroot openwrt ，并根据前面的配置文件来设定容器内网络
+  ```bash
+  sudo systemd-nspawn -D /var/lib/machines/openwrt -b
   ```
-  sudo systemd-nspawn -D /var/lib/machines/openwrt
-  ```
-2. 进入容器后，修改 `/etc/config/network` ，~~你在宿主直接修改文件也可以的~~，修改以下节点，**不要直接用下面文件**
+  - 启动后，按 Enter 进入终端
+
+1. 进入容器后，修改 `/etc/config/network` ，~~你在宿主直接修改文件也可以的~~，修改以下节点，**不要直接用下面文件**
   ```
   config device    # 配置 lan 的网桥
 	  option name 'br-lan'
@@ -132,12 +129,12 @@ Bridge=br-openwrt  # 与宿主连接的网桥
 	  option broadcast '10.10.0.255'
 
   config interface 'wan'  # 配置 wan 部分，如果该部分不存在，那么直接创建
-    option device 'eth0'
-    option proto 'dhcp'
+          option device 'eth0'
+          option proto 'dhcp'
 
   config interface 'wan6'  # 配置 ipv6 ，可选
-    option device 'eth0'
-    option proto 'dhcpv6'
+          option device 'eth0'
+          option proto 'dhcpv6'
   ```
 3. 因为 wan 部分的防火墙存在，如果你不在宿主转发 openwrt 的端口，是没办法通过 webui 来直接配置 openwrt 的
   - 直接暴力的方法，修改容器 `/etc/config/firewall` 来允许来自 wan 的访问
@@ -191,6 +188,16 @@ RouteMetric=5  # 这个数值要比其文件中小，保持权重最高
 RouteMetric=20
 ```
 重启 `systemd-networkd` ，稍后即透明代理成功
+
+## 稳定工作
+
+```
+# sudo machinectl -a              
+MACHINE CLASS     SERVICE        OS      VERSION ADDRESSES    
+.host   host      -              archarm -       10.0.0.137...
+archarm container systemd-nspawn archarm -       10.10.0.3...
+openwrt container systemd-nspawn openwrt 23.05.2 10.0.0.90...
+```
 
 ## 注意事项
 
