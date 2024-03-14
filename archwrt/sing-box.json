@@ -1,0 +1,117 @@
+{
+  "log": {
+    "level": "info"
+  },
+  "dns": {
+    "servers": [
+      {
+        "tag": "dns_proxy",
+        "address": "https://1.1.1.1/dns-query",
+        "address_resolver": "dns_resolver",
+        "strategy": "prefer_ipv4",
+        "detour": "proxy"
+      },
+      {
+        "tag": "dns_direct",
+        "address": "https://dns.alidns.com/dns-query",
+        "address_resolver": "dns_resolver",
+        "strategy": "prefer_ipv4",
+        "detour": "direct"
+      },
+      {
+        "tag": "dns_resolver",
+        "address": "127.0.0.53",
+        "detour": "direct"
+      },
+      {
+        "tag": "dns_block",
+        "address": "rcode://success"
+      }
+    ],
+    "rules": [
+      {
+        "outbound": "any",
+        "server": "dns_resolver"
+      },
+      {
+        "clash_mode": "Direct",
+        "server": "dns_direct"
+      },
+      {
+        "clash_mode": "Default",
+        "server": "dns_proxy"
+      },
+      {
+        "clash_mode": "Global",
+        "server": "dns_proxy"
+      }
+    ],
+    "final": "dns_proxy"
+  },
+  "inbounds": [
+    {
+      "type": "mixed",
+      "tag": "mixed-in",
+      "listen": "::",
+      "listen_port": 1080
+    },
+    {
+      "type": "direct",
+      "tag": "dns-in",
+      "listen": "127.0.0.1",
+      "listen_port": 6053
+    }
+  ],
+  "outbounds": [
+    {
+      "type": "selector",
+      "tag": "default",
+      "outbounds": [
+        "proxy",
+        "direct"
+      ],
+      "default": "proxy",
+      "interrupt_exist_connections": true
+    },
+    {
+      "type": "selector",
+      "tag": "proxy",
+      "outbounds": [
+        "hy2-out"
+      ],
+      "default": "hy2-out",
+      "interrupt_exist_connections": true
+    },
+    {
+      "type": "dns",
+      "tag": "dns-out"
+    },
+    {
+      "type": "direct",
+      "tag": "direct"
+    },
+    {
+      "type": "hysteria2",
+      "tag": "hy2-out",
+      "server": "domain.com",
+      "server_port": 443,
+      "up_mbps": 100,
+      "down_mbps": 100,
+      "password": "**********",
+      "tls": {
+        "enabled": true,
+        "server_name": "domain.com"
+      }
+    }
+  ],
+  "route": {
+    "rules": [
+      {
+        "inbound": "dns-in",
+        "outbound": "dns-out"
+      }
+    ],
+    "final": "default",
+    "auto_detect_interface": true
+  }
+}

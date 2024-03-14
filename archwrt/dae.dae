@@ -1,0 +1,56 @@
+global {
+    # 将代理来自 host0 的流量
+    lan_interface: host0
+    wan_interface: auto
+    log_level:info
+    dial_mode: domain
+    allow_insecure: false
+    # 加速用， nspawn 支持的
+    auto_config_kernel_parameter: true
+    # 问候 firewalld
+    auto_config_firewall_rule: true
+}
+
+dns {
+    upstream {
+        # 无污染上游
+        oversea: 'udp://127.0.0.1:6053'
+        # 默认上游
+        local: 'udp://127.0.0.53:53'
+    }
+    routing {
+        request {
+            fallback: local
+        }
+        response {
+            upstream(oversea) -> accept
+            ip(geoip:private) && !qname(geosite:cn) -> oversea
+            fallback: accept
+        }
+    }
+}
+
+group {
+    proxy {
+        policy: min_moving_avg
+    }
+}
+
+node {
+    # 设置 sing-box 的节点
+    'socks5://127.0.0.1:1080'
+}
+
+routing {
+    # 设置这三个程序的流量任何情况下不经过 dae
+    pname(dnsmasq) -> must_direct
+    pname(systemd-resolved) -> must_direct
+    pname(sing-box) -> must_direct
+
+    # 常规分流
+    l4proto(udp) && dport(443) -> direct
+    dip(geoip:private) -> direct
+    dip(geoip:cn) -> direct
+
+    fallback: proxy
+}

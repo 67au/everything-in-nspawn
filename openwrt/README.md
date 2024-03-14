@@ -74,7 +74,7 @@ Name=br-openwrt
 Kind=bridge
 ```
 ```
-cat /etc/systemd/network/br-openwrt.network
+# /etc/systemd/network/br-openwrt.network
 [Match]
 Name=br-openwrt
 
