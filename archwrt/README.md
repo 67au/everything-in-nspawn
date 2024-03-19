@@ -317,6 +317,18 @@ RouteMetric=20
 
 详见 [点击查看](./dae.dae)
 
+容器内使用 dae 还需要在 nspawn 容器进行额外的配置
+
+```
+# /etc/systemd/nspawn/archwrt.nspawn
+[Exec]
+PrivateUsers=no
+SystemCallFilter=@privileged
+
+[Files]
+Bind=/sys/fs/bpf
+```
+
 1. 复制粘贴到 `/etc/dae/config.dae` 上即可
 2. 如果是使用 firewalld 必须配置 `auto_config_firewall_rule: true` 这个选项，在重启 firewalld 后必须重启 dae ，详见 [点击查看](https://github.com/daeuniverse/dae/pull/420)
 3. 承接 2 那点，使用 nftables 的话，需要运行以下命令(已经添加到提供的 [`nftables.conf`](./nftables.conf) 中了)
